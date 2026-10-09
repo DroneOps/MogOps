@@ -1,0 +1,19 @@
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+training/data/
+training/features/
+training/artifacts/*.npz
+training/models/*.onnx
+
+# Node
+node_modules/
+web/dist/
+web/public/mediapipe/
+*.log

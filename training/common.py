@@ -168,6 +168,25 @@ def geometry_metrics(landmarks: np.ndarray, width: int, height: int) -> dict[str
     }
 
 
+def pose_values(landmarks: np.ndarray, width: int, height: int) -> dict[str, float]:
+    """Head pose proxies; twin of web/src/lib/pose.ts poseValues().
+
+    roll  : eye-line angle in degrees
+    yaw   : nose-tip offset from the cheekbone midpoint / face width
+    pitch : where the nose tip sits between eye line (0) and chin (1)
+    """
+    px = landmarks[:, :2] * np.array([width, height], dtype=np.float64)
+    eyes_r = (px[R_EYE_OUTER] + px[R_EYE_INNER]) / 2
+    eyes_l = (px[L_EYE_OUTER] + px[L_EYE_INNER]) / 2
+    roll = float(np.degrees(np.arctan2(eyes_l[1] - eyes_r[1], eyes_l[0] - eyes_r[0])))
+    p = _aligned(px)
+    face_width = float(np.hypot(*(p[R_ZYGION] - p[L_ZYGION])))
+    yaw = (p[NOSE_TIP, 0] - (p[R_ZYGION, 0] + p[L_ZYGION, 0]) / 2) / face_width
+    eye_y = (p[R_EYE_OUTER, 1] + p[R_EYE_INNER, 1] + p[L_EYE_OUTER, 1] + p[L_EYE_INNER, 1]) / 4
+    pitch = (p[NOSE_TIP, 1] - eye_y) / (p[CHIN, 1] - eye_y)
+    return {"roll": roll, "yaw": float(yaw), "pitch": float(pitch)}
+
+
 # ---------------------------------------------------------------------------
 # Face crop rule (shared by the teacher embeddings and the browser app)
 

@@ -6,7 +6,14 @@ Writes:
   artifacts/landmarks.npz         478 x 3 normalized points per image (+ sizes)
   web/src/lib/model-params.json   "crop": how SCUT photos frame the face, so
                                   the app and 03_embed.py crop the same way
+                                  "pose": head-pose range of SCUT's frontal
+                                  photos, used by the app's "face the camera" check
+
+Re-derive just "crop"/"pose" from saved landmarks: uv run 01_landmarks.py --framing-only
 """
+
+import sys
+
 
 import mediapipe as mp
 import numpy as np
@@ -14,7 +21,7 @@ from PIL import Image
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions
 
-from common import ARTIFACTS, IMAGES, LANDMARKER_TASK, save_params
+from common import ARTIFACTS, IMAGES, LANDMARKER_TASK, pose_values, save_params
 
 
 def main() -> None:
@@ -44,6 +51,10 @@ def main() -> None:
     np.savez(ARTIFACTS / "landmarks.npz", names=np.array(names), points=points, sizes=sizes)
     print(f"landmarks for {len(names)} faces, no face found in {len(missing)}: {missing[:10]}")
 
+    save_framing(points, sizes)
+
+
+def save_framing(points: np.ndarray, sizes: np.ndarray) -> None:
     # Framing: SCUT photos are square crops around the face. Express the photo
     # as a square relative to the landmark bounding box: side = scale * box,
     # center = box center + offset * box.
@@ -62,6 +73,19 @@ def main() -> None:
     print(f"image sizes seen: {sorted(set(map(tuple, sizes.tolist())))[:5]}")
     print(f"crop rule: {crop}")
 
+    # Pose: allowed range = 1st-99th percentile of SCUT's frontal photos.
+    values = [pose_values(p, w, h) for p, (w, h) in zip(points, sizes)]
+    pose = {}
+    for key in ("roll", "yaw", "pitch"):
+        v = np.array([d[key] for d in values])
+        lo, hi = np.quantile(v, [0.01, 0.99])
+        pose[key] = [round(float(lo), 4), round(float(hi), 4)]
+    save_params("pose", pose)
+    print(f"pose range: {pose}")
 
 if __name__ == "__main__":
-    main()
+    if "--framing-only" in sys.argv:
+        saved = np.load(ARTIFACTS / "landmarks.npz")
+        save_framing(saved["points"], saved["sizes"])
+    else:
+        main()

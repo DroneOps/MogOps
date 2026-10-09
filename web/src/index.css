@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-zinc-950 font-sans text-zinc-200 antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6;
+  }
+  .card-title {
+    @apply text-base font-semibold text-zinc-50;
+  }
+  .card-subtitle {
+    @apply mt-0.5 text-sm text-zinc-400;
+  }
+  .field {
+    @apply flex flex-col gap-1.5 text-xs font-medium text-zinc-400;
+  }
+  .select {
+    @apply rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500;
+  }
+}

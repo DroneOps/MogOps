@@ -27,7 +27,7 @@ import numpy as np
 from scipy.optimize import lsq_linear
 from scipy.stats import pearsonr
 
-from common import ARTIFACTS, METRICS, REPO, all_labels, geometry_metrics, official_splits, save_params
+from common import ARTIFACTS, METRICS, REPO, all_labels, geometry_metrics, official_splits, pose_values, save_params
 
 BINS = 10
 # MediaPipe's symmetry measure correlates the "wrong" way with SCUT ratings
@@ -159,6 +159,7 @@ def main() -> None:
                 "height": h,
                 "landmarks": pts.tolist(),
                 "metrics": m,
+                "pose": pose_values(pts, w, h),
                 "subScores": dict(zip(METRICS, sub_scores(vec, final["curves"])[0].tolist())),
                 "overall": float(display_score(raw_score(vec, final), final["display"])[0]),
             }

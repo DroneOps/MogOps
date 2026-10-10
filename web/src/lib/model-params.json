@@ -250,6 +250,16 @@
       "pc6040": 0.9303,
       "mae5fold": 0.1913,
       "rmse5fold": 0.2467
+    },
+    "quantization": {
+      "agreementPC": 0.987,
+      "meanAbsDiff": 0.0762,
+      "meanAbsDiffUncalibrated": 0.105
+    },
+    "bytes": 89036189,
+    "calibration": {
+      "scale": 1.007474,
+      "offset": 0.054186
     }
   }
 }

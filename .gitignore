@@ -17,3 +17,4 @@ node_modules/
 web/dist/
 web/public/vendor/
 *.log
+*.tsbuildinfo

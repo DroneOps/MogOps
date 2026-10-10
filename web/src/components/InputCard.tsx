@@ -55,8 +55,8 @@ export function InputCard(props: Props) {
         const ctx = canvas.getContext("2d")!;
         ctx.clearRect(0, 0, width, height);
         if (landmarks) {
-          const r = Math.max(1, width / 500);
-          ctx.fillStyle = "rgba(244, 244, 245, 0.55)";
+          const r = Math.max(1.5, width / 220);
+          ctx.fillStyle = "rgba(244, 244, 245, 0.7)";
           for (const p of landmarks) ctx.fillRect(p.x * width - r / 2, p.y * height - r / 2, r, r);
         }
         if (box) {

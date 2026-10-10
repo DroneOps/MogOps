@@ -180,6 +180,9 @@ export function traitWeight(key: MetricKey): number {
   return geometry.weights[geometry.curves.findIndex((c) => c.key === key)];
 }
 
+/** Traits below half a percent of the weight are shown but do not count. */
+export const countsInOverall = (key: MetricKey) => traitWeight(key) >= 0.005;
+
 // ---------------------------------------------------------------------------
 // Labels for the breakdown, plus strongest / weakest trait
 
@@ -195,7 +198,7 @@ export const TRAITS: Record<MetricKey, { label: string; strength: string; low: s
 };
 
 export function strongestAndWeakest(metrics: Metrics, subs: Metrics): { strength: string; flaw: string } {
-  const keys = METRIC_KEYS.filter((k) => traitWeight(k) > 0 || k === "symmetry");
+  const keys = METRIC_KEYS.filter((k) => countsInOverall(k) || k === "symmetry");
   const best = keys.reduce((a, b) => (subs[b] > subs[a] ? b : a));
   const worst = keys.reduce((a, b) => (subs[b] < subs[a] ? b : a));
   // A low score means the value sits on one side of the curve's peak.

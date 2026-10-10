@@ -1,4 +1,4 @@
-import { GEOMETRY_ACCURACY, METRIC_KEYS, TRAITS, traitWeight } from "../lib/geometry";
+import { countsInOverall, GEOMETRY_ACCURACY, METRIC_KEYS, TRAITS, traitWeight } from "../lib/geometry";
 import { MOGNET_ACCURACY } from "../lib/mognet";
 import type { Analysis } from "../lib/useFaceAnalysis";
 
@@ -67,7 +67,7 @@ export function ScoreCard({ analysis, engine }: { analysis: Analysis; engine: En
                 <span className="text-zinc-200">
                   {TRAITS[key].label}
                   <span className="ml-2 text-xs text-zinc-500">
-                    {weight > 0 ? `${Math.round(weight * 100)}% of geometry` : "not in overall"}
+                    {countsInOverall(key) ? `${Math.round(weight * 100)}% of geometry` : "not in overall"}
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-zinc-300">{analysis.subs ? value.toFixed(1) : "0.0"}</span>

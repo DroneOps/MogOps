@@ -15,5 +15,4 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { headers: isolation },
   preview: { headers: isolation },
-  optimizeDeps: { exclude: ["onnxruntime-web"] },
 });

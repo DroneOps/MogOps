@@ -95,12 +95,18 @@ export function useFaceAnalysis() {
   const startCamera = useCallback(async (video: HTMLVideoElement, deviceId?: string) => {
     stopCamera();
     setAnalysis({ ...EMPTY, status: "loading", message: "Starting camera" });
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    });
-    video.srcObject = stream;
-    await video.play();
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      setAnalysis({ ...EMPTY, status: "error", message: "Camera unavailable" });
+      throw e;
+    }
     const state = { stop: false, raf: 0, stream };
     camera.current = state;
 

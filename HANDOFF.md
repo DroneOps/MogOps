@@ -1,6 +1,6 @@
 # Handoff: MogOps
 
-*As of 2026-10-09. Repo: https://github.com/DroneOps/MogOps (public), branch `main`.*
+*As of 2026-10-13 (first written 2026-10-09). Repo: https://github.com/DroneOps/MogOps (public), branch `main`.*
 
 ## 1. Goal & context
 
@@ -39,12 +39,14 @@ repo that runs on-device (in the browser), with a Mogwars-style UI and breakdown
 
 ## 2. Current state
 
-- **Status:** working MVP, pushed. Photo mode verified end to end in dev and
-  production builds. **Camera mode is untested on a real camera** (the dev
-  machine's browser pane has none).
-- **Completion:** about 75% of the vision. Both scoring engines, the UI,
-  training pipeline and tests are done. The small on-device student model,
-  real-camera testing, deployment, and an age gate are not.
+- **Status:** working MVP, pushed, in active use by the project owner. Photo mode is
+  verified end to end in dev and production builds. Camera mode works on the
+  owner's webcam (their feedback: "nice", but **"the scores are too centric"**;
+  see Next steps #1). The eyebrow-raise trigger has not been confirmed on a real
+  webcam yet.
+- **Completion:** about 80% of the vision. Both scoring engines, the UI, sounds,
+  training pipeline and tests are done. Not done: score spread, the small
+  on-device student model, deployment, and an age gate.
 - **What's working**
   - Learned score "MogNet" in the browser: **r = 0.934** with human ratings
     (5-fold), about 1.1 s per photo with 4 WASM threads on an M1.
@@ -64,6 +66,13 @@ repo that runs on-device (in the browser), with a Mogwars-style UI and breakdown
     **not yet tuned on a real webcam**). MP3s are copyrighted, git-ignored in
     `web/public/audio/`.
 - **What's broken / incomplete**
+  - **Scores bunch in the middle.** Measured 2026-10-13 on held-out SCUT faces:
+    human ratings on 0–10 have mean 4.98, sd 1.72, 5th–95th percentile 2.5–8.0,
+    and only 5.8% are ≥ 8.0. MogNet's held-out predictions are nearly as spread
+    (sd 1.60, 4.0% ≥ 8.0). So this is mostly **how the people rating the faces
+    used the scale**, not the model shrinking toward the mean. Webcam
+    frames (lighting, angle) probably push live scores further toward the middle.
+    Result: the 8.0 Giga Chad threshold is rarely reached.
   - The int8 model drifts from full precision by an average of 0.076 on the
     1–5 scale (about 0.19 on 0–10) after calibration. Individual faces can be
     off by 0.4.
@@ -123,10 +132,14 @@ training/                      Python 3.12, uv. Run from training/: uv run <scri
 web/
   scripts/copy-wasm.mjs        postinstall: copies MediaPipe wasm + ORT bundle/wasm to public/vendor (git-ignored)
   vite.config.ts               COOP/COEP headers (needed for ORT threads), base "./"
-  src/App.tsx                  layout: InputCard + ScoreCard + disclaimer
-  src/components/InputCard.tsx image/camera toggle, headline engine select, preview + overlay canvas
+  src/App.tsx                  layout, stored toggles (localStorage "mogops.showPoints"/"mogops.sound"), music + boom wiring
+  src/components/InputCard.tsx image/camera toggle, headline engine select, Face points / Sound toggles,
+                               preview + overlay canvas (points off by default), "Eyebrow raise" badge
   src/components/ScoreCard.tsx big score, MogNet/geometry, strongest/weakest, 8 trait bars, accuracy footer
-  src/lib/useFaceAnalysis.ts   the pipeline loop (photo + camera), throttling, smoothing
+  src/lib/useFaceAnalysis.ts   the pipeline loop (photo + camera), throttling, smoothing; calls onEyebrowRaise
+  src/lib/eyebrow.ts           EyebrowDetector (raised-brow trigger, constants at top) + eyebrow.test.ts
+  src/lib/sounds.ts            MOG_THRESHOLD = 8.0, Giga Chad loop (pause/resume) + vine boom
+  public/audio/                gigachad.mp3, vine-boom.mp3 — copyrighted, git-ignored, see its README.md
   src/lib/geometry.ts          computeMetrics (:93), curves, TRAITS labels, strongestAndWeakest (:200)
   src/lib/pose.ts / crop.ts / landmarker.ts / rolling.ts / mognet.ts
   src/lib/model-params.json    ALL learned numbers (crop, pose, geometry, mognet+calibration)
@@ -213,45 +226,78 @@ tilt 0.09, lower third 0.03, eye aspect 0.01, midface 0.00, symmetry 0 (display 
    `public/vendor/ort` and `import()` it by full URL with `@vite-ignore`
    (`mognet.ts:27`). Works in dev and production.
 
+❌ **Wiring the theme to "start when ≥ 8"** would restart it every time the score
+   crossed the line. `sounds.ts` keeps one `Audio` element: it only calls
+   `play()` when paused and `pause()` when playing, so it resumes where it
+   stopped. Verified in the browser: paused at 2.36 s, resumed from 2.36 s.
+
+⚠️ **Audio autoplay:** browsers block `play()` until the user has clicked on the
+   page. Choosing Camera or a photo counts as that click; errors are swallowed.
+
+⚠️ **The dev server dies with the session that started it.** On 2026-10-11 the
+   owner found localhost:5173 down. Run it from your own terminal
+   (`npm --prefix web run dev`).
+
 ⚠️ **Moving `data/` while background jobs ran** broke two evaluation runs.
    Don't move the dataset mid-job.
 
 ⚠️ **The 8 GB M1 swaps** if embedding (MPS) runs alongside other heavy work.
    The 6-minute CLIP embedding pass took 34 minutes.
 
-⚠️ **The dev machine has very little disk** (about 4–5 GB free). The fp32 ONNX
+⚠️ **The dev machine has very little disk** (1–5 GB free during this work). The fp32 ONNX
    (345 MB, git-ignored) can be deleted after export.
 
 ## 5. Next steps (priority order)
 
-1. **[HIGH] Test camera mode on a real webcam** (Chrome: `npm run dev`, choose
-   Camera). Check that the pose messages trigger sensibly and that the score
-   holds steady. The pose limits come from SCUT's 1st–99th percentiles
-   (`model-params.json` → `pose`) and may need tuning for webcams.
-2. **[HIGH] Distill a small on-device student** (the plan from the start):
+1. **[HIGH] Spread the scores (owner's main complaint).** This is a display
+   decision, so ask the owner which feel they want before building. Options:
+   - *Stretch:* `display = 5 + k·(score − 5)`, e.g. k = 1.5, clamped to 0–10.
+     Simplest. Every score keeps its order.
+   - *Percentile:* show where the face ranks among SCUT faces (e.g. "top 8%"),
+     or map that rank onto a chosen 0–10 curve. Most honest.
+   - *Target curve:* pick how often each score should appear (e.g. 10% of faces
+     ≥ 8) and fit a monotonic map to it in `05_export_web.py` /
+     `model-params.json`.
+   Apply it in `toTen()` (`web/src/lib/mognet.ts:44`) and in `geometryScore`
+   (`geometry.ts`), then retune `MOG_THRESHOLD` (`sounds.ts`) so the theme plays
+   at the intended rarity.
+2. **[HIGH] Tune the eyebrow trigger on a real webcam.** Constants are at the top
+   of `web/src/lib/eyebrow.ts`: `RAISE_RATIO` 1.15 (lower it if raises are
+   missed, raise it if talking triggers it), `HOLD_FRAMES` 3, `COOLDOWN_MS` 1200.
+   Consider logging `browHeights` ratios while raising and resting to choose a
+   value from data.
+3. **[HIGH] Distill a small on-device student** (the plan from the start):
    use `models/teacher_svr.joblib` to label SCUT plus extra unlabeled faces,
    then train MobileNetV3-Small or EfficientNet-Lite0 on the teacher's scores.
    Target 2–6 MB and real-time speed. It replaces the 89 MB int8 CLIP and fixes
    the drift issue. Add `06_distill.py`. Watch dataset licenses (FFHQ/CelebA
    are non-commercial too).
-3. **[HIGH] Team decisions:** repo visibility given the SCUT-derived weights,
+4. **[HIGH] Team decisions:** repo visibility given the SCUT-derived weights,
    repo license, and an age gate before any public deploy.
-4. **[MEDIUM] Model file hosting:** move ONNX files to GitHub Releases or Git
+5. **[MEDIUM] Model file hosting:** move ONNX files to GitHub Releases or Git
    LFS before the next retrain to avoid bloating git history.
-5. **[MEDIUM] Deploy:** static host that can send COOP/COEP headers (e.g.
+6. **[MEDIUM] Deploy:** static host that can send COOP/COEP headers (e.g.
    Netlify/Vercel/Cloudflare Pages `_headers`). Without them inference falls
    back to a single thread (not timed yet; expect it to be noticeably slower).
-6. **[MEDIUM] Own labels for commercial use:** pairwise "who mogs?" votes →
+   The audio files are not in git, so a deploy needs its own licensed sounds.
+7. **[MEDIUM] Own labels for commercial use:** pairwise "who mogs?" votes →
    Bradley–Terry scores, collected in-app. This fits the battle format and
    removes the SCUT dependency.
-7. **[LOW] Head-to-head mode** (two faces, the Omoggle-style battle UI), and
+8. **[LOW] Head-to-head mode** (two faces, the Omoggle-style battle UI), and
    showing the face crop the model sees.
-8. **[LOW] Cleanup:** `MOGNET_MB` in `mognet.ts` is exported but unused; the
-   Python `faces()` in `05_export_web.py` reloads landmarks on each call.
+9. **[LOW] Cleanup:** `MOGNET_MB` in `mognet.ts` is exported but unused; the
+   Python `faces()` in `05_export_web.py` reloads landmarks on each call; the old
+   experiment folders `../teacher` and `../mogged` and the 345 MB
+   `training/models/mognet-fp32.onnx` can be deleted to free disk.
 
 ## 6. Quick reference
 
-- **Run app:** `cd web && npm install && npm run dev`; tests `npm test`; build `npm run build && npm run preview`
+- **Run app:** `cd web && npm install && npm run dev` (or `npm --prefix web run dev`
+  from the repo root), then `open -a "Google Chrome" http://localhost:5173`.
+  Tests `npm test` (6 tests: geometry/pose parity + eyebrow detector); build
+  `npm run build && npm run preview`.
+- **Sounds:** put `gigachad.mp3` and `vine-boom.mp3` in `web/public/audio/` (not in
+  git). The **Sound** toggle in the UI mutes both. Threshold: `MOG_THRESHOLD`.
 - **Retrain:** `cd training && uv sync && uv run 00_download.py && uv run 01_landmarks.py && uv run 02_geometry.py && uv run 03_embed.py && uv run 04_teacher.py && uv run 05_export_web.py`
   (00/01 about 1 min each, 03 about 6 min, 04 about 8 min, 05 about 5 min on an M1)
 - **Score photos from the CLI:** `cd training && uv run predict.py face.jpg`

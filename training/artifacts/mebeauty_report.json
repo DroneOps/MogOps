@@ -1,0 +1,64 @@
+{
+  "mogNet": {
+    "scut": {
+      "scutTest5fold": 0.9336,
+      "meTest": 0.6579
+    },
+    "me": {
+      "scutTest5fold": 0.7778,
+      "meTest": 0.8311
+    },
+    "both": {
+      "scutTest5fold": 0.9247,
+      "meTest": 0.8149
+    }
+  },
+  "byGroup": {
+    "scut": {
+      "female/asian": 0.645,
+      "female/black": 0.288,
+      "female/caucasian": 0.735,
+      "female/hispanic": 0.644,
+      "female/indian": 0.717,
+      "female/mideastern": 0.743,
+      "male/asian": 0.501,
+      "male/black": 0.586,
+      "male/caucasian": 0.711,
+      "male/hispanic": 0.673,
+      "male/indian": 0.678,
+      "male/mideastern": 0.822
+    },
+    "me": {
+      "female/asian": 0.737,
+      "female/black": 0.664,
+      "female/caucasian": 0.812,
+      "female/hispanic": 0.8,
+      "female/indian": 0.821,
+      "female/mideastern": 0.878,
+      "male/asian": 0.642,
+      "male/black": 0.729,
+      "male/caucasian": 0.797,
+      "male/hispanic": 0.793,
+      "male/indian": 0.744,
+      "male/mideastern": 0.861
+    },
+    "both": {
+      "female/asian": 0.752,
+      "female/black": 0.628,
+      "female/caucasian": 0.811,
+      "female/hispanic": 0.755,
+      "female/indian": 0.807,
+      "female/mideastern": 0.855,
+      "male/asian": 0.637,
+      "male/black": 0.727,
+      "male/caucasian": 0.78,
+      "male/hispanic": 0.783,
+      "male/indian": 0.753,
+      "male/mideastern": 0.856
+    }
+  },
+  "geometry": {
+    "scutParamsOnMe": 0.286,
+    "meParamsOnMe": 0.3275
+  }
+}

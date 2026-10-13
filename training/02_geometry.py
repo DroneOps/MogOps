@@ -12,7 +12,8 @@ We learn both from data instead:
               Unlike a flat band this captures one-sided trends
               ("narrower jaw rated higher") as well as sweet spots.
   2. weights  Non-negative least squares of rating on the sub-scores.
-  3. display  The weighted sum is spread to match SCUT's rating spread.
+  3. display  The weighted sum goes through the shared target display curve
+              (common.display_knots), with SCUT + MEBeauty faces as reference.
 
 On the official splits this reaches PC ~0.60, versus ~0.29 for the same
 pipeline with Mogwars-style flat bands (printed below for comparison).
@@ -27,7 +28,18 @@ import numpy as np
 from scipy.optimize import lsq_linear
 from scipy.stats import pearsonr
 
-from common import ARTIFACTS, METRICS, REPO, all_labels, geometry_metrics, official_splits, pose_values, save_params
+from common import (
+    ARTIFACTS,
+    METRICS,
+    REPO,
+    all_labels,
+    display_knots,
+    display_score,
+    geometry_metrics,
+    official_splits,
+    pose_values,
+    save_params,
+)
 
 BINS = 10
 # MediaPipe's symmetry measure correlates the "wrong" way with SCUT ratings
@@ -74,26 +86,11 @@ def calibrate(M: np.ndarray, y: np.ndarray) -> dict:
     w = np.zeros(len(METRICS))
     w[scored] = fit.x[:-1]
     w = w / w.sum() if w.sum() > 0 else np.full(len(METRICS), 1 / len(METRICS))
-    raw = S @ w
-    y10 = (y - 1) / 4 * 10
-    return {
-        "curves": curves,
-        "weights": w.tolist(),
-        "display": {
-            "rawMean": float(raw.mean()),
-            "rawStd": float(raw.std()),
-            "mean": float(y10.mean()),
-            "std": float(y10.std()),
-        },
-    }
+    return {"curves": curves, "weights": w.tolist(), "display": display_knots(S @ w)}
 
 
 def raw_score(M: np.ndarray, params: dict) -> np.ndarray:
     return sub_scores(M, params["curves"]) @ np.array(params["weights"])
-
-
-def display_score(raw: np.ndarray, d: dict) -> np.ndarray:
-    return np.clip(d["mean"] + d["std"] * (raw - d["rawMean"]) / d["rawStd"], 0, 10)
 
 
 def flat_band_baseline(Mtr, ytr, Mte):
@@ -139,6 +136,12 @@ def main() -> None:
         print(f"  {key:13s} correlation with rating {pearsonr(Mall[:, j], y)[0]:+.3f}")
 
     final = calibrate(Mall, y)
+    me_path = ARTIFACTS / "mebeauty_landmarks.npz"
+    if me_path.exists():
+        # Display reference: SCUT + MEBeauty faces, closer to the variety a webcam sees.
+        me = np.load(me_path)
+        M_me = np.array([list(geometry_metrics(p, w, h).values()) for p, (w, h) in zip(me["points"], me["sizes"])])
+        final["display"] = display_knots(np.concatenate([raw_score(Mall, final), raw_score(M_me, final)]))
     final["accuracy"] = {"pc5fold": round(float(pc5), 4), "pc6040": round(float(pc64), 4)}
     save_params("geometry", final)
     print("weights:", {k: round(w, 3) for k, w in zip(METRICS, final["weights"])})

@@ -4,6 +4,7 @@
 // computeMetrics() is a line-by-line twin of training/common.py
 // geometry_metrics(); geometry.test.ts checks both give the same numbers.
 
+import { displayScore, interp, type Knots } from "./display";
 import params from "./model-params.json";
 
 export type Landmark = { x: number; y: number };
@@ -142,22 +143,10 @@ type Curve = { key: string; x: number[]; y: number[] };
 const geometry = params.geometry as {
   curves: Curve[];
   weights: number[];
-  display: { rawMean: number; rawStd: number; mean: number; std: number };
+  display: Knots;
   accuracy: { pc5fold: number; pc6040: number };
 };
 export const GEOMETRY_ACCURACY = geometry.accuracy;
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-/** Same as numpy.interp: linear, clamped to the end values. */
-function interp(v: number, xs: number[], ys: number[]): number {
-  if (v <= xs[0]) return ys[0];
-  if (v >= xs[xs.length - 1]) return ys[ys.length - 1];
-  let i = 1;
-  while (xs[i] < v) i++;
-  const t = (v - xs[i - 1]) / (xs[i] - xs[i - 1]);
-  return ys[i - 1] + t * (ys[i] - ys[i - 1]);
-}
 
 function curveScore(v: number, curve: Curve): number {
   const lo = Math.min(...curve.y);
@@ -172,8 +161,7 @@ export function subScores(metrics: Metrics): Metrics {
 /** Overall geometry score on the 0-10 display scale. */
 export function geometryScore(subs: Metrics): number {
   const raw = geometry.curves.reduce((sum, c, i) => sum + subs[c.key as MetricKey] * geometry.weights[i], 0);
-  const d = geometry.display;
-  return clamp(d.mean + (d.std * (raw - d.rawMean)) / d.rawStd, 0, 10);
+  return displayScore(raw, geometry.display);
 }
 
 export function traitWeight(key: MetricKey): number {

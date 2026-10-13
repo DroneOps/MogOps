@@ -168,6 +168,62 @@ def geometry_metrics(landmarks: np.ndarray, width: int, height: int) -> dict[str
     }
 
 
+# ---------------------------------------------------------------------------
+# "PSL" ratios: the proportions looksmaxxing forums score faces by, each with
+# the community's claimed ideal range. These ideals are forum/clinic lore,
+# not peer-reviewed, and assume real anthropometric landmarks; MediaPipe's
+# points sit elsewhere for some of them (e.g. its canthi make eyes look
+# narrower). 07_psl.py measures how well this agrees with real ratings.
+
+R_IRIS, L_IRIS = 468, 473
+R_ALA, L_ALA = 64, 294
+R_MOUTH, L_MOUTH = 61, 291
+UPPER_LIP_INNER, LOWER_LIP_INNER = 13, 14
+
+# key: (ideal low, ideal high, what it is)
+PSL_IDEALS = {
+    "canthalTilt": (4.0, 8.0, "outer eye corner above inner, degrees"),
+    "fwhr": (1.8, 2.0, "cheekbone width / brow-to-upper-lip height"),
+    "midfaceRatio": (0.93, 1.01, "pupil distance / pupils-to-upper-lip height"),
+    "esr": (0.45, 0.47, "eye separation ratio: pupil distance / cheekbone width"),
+    "chinPhiltrum": (2.0, 2.25, "mouth-to-chin height / nose-to-mouth height"),
+    "jawCheek": (0.85, 0.92, "jaw width / cheekbone width"),
+    "noseEye": (0.95, 1.05, "nose width / gap between the eyes"),
+    "mouthNose": (1.45, 1.62, "mouth width / nose width"),
+    "thirds": (0.95, 1.05, "lower third / middle third"),
+    "lipRatio": (1.5, 2.0, "lower lip / upper lip height"),
+}
+PSL_METRICS = list(PSL_IDEALS)
+
+
+def psl_metrics(landmarks: np.ndarray, width: int, height: int) -> dict[str, float]:
+    """The PSL ratios from normalized MediaPipe landmarks (478 points, with irises)."""
+    p = _aligned(landmarks[:, :2] * np.array([width, height], dtype=np.float64))
+    dist = lambda a, b: float(np.hypot(*(p[a] - p[b])))  # noqa: E731
+
+    face_width = dist(R_ZYGION, L_ZYGION)
+    pupils = dist(R_IRIS, L_IRIS)
+    pupil_y = (p[R_IRIS, 1] + p[L_IRIS, 1]) / 2
+    stomion_y = (p[UPPER_LIP_INNER, 1] + p[LOWER_LIP_INNER, 1]) / 2
+    nose_width = dist(R_ALA, L_ALA)
+    brow_y = (p[R_BROW, 1] + p[L_BROW, 1]) / 2
+    tilt_r = np.degrees(np.arctan2(p[R_EYE_INNER, 1] - p[R_EYE_OUTER, 1], p[R_EYE_INNER, 0] - p[R_EYE_OUTER, 0]))
+    tilt_l = np.degrees(np.arctan2(p[L_EYE_INNER, 1] - p[L_EYE_OUTER, 1], p[L_EYE_OUTER, 0] - p[L_EYE_INNER, 0]))
+
+    return {
+        "canthalTilt": float((tilt_r + tilt_l) / 2),
+        "fwhr": face_width / abs(p[UPPER_LIP, 1] - brow_y),
+        "midfaceRatio": pupils / abs(p[UPPER_LIP, 1] - pupil_y),
+        "esr": pupils / face_width,
+        "chinPhiltrum": abs(p[CHIN, 1] - stomion_y) / abs(stomion_y - p[SUBNASALE, 1]),
+        "jawCheek": dist(R_GONION, L_GONION) / face_width,
+        "noseEye": nose_width / dist(R_EYE_INNER, L_EYE_INNER),
+        "mouthNose": dist(R_MOUTH, L_MOUTH) / nose_width,
+        "thirds": abs(p[CHIN, 1] - p[SUBNASALE, 1]) / abs(p[SUBNASALE, 1] - p[GLABELLA, 1]),
+        "lipRatio": abs(p[LOWER_LIP, 1] - p[LOWER_LIP_INNER, 1]) / abs(p[UPPER_LIP_INNER, 1] - p[UPPER_LIP, 1]),
+    }
+
+
 def pose_values(landmarks: np.ndarray, width: int, height: int) -> dict[str, float]:
     """Head pose proxies; twin of web/src/lib/pose.ts poseValues().
 
@@ -214,3 +270,26 @@ def save_params(section: str, value: dict) -> None:
     params[section] = value
     WEB_PARAMS.parent.mkdir(parents=True, exist_ok=True)
     WEB_PARAMS.write_text(json.dumps(params, indent=2) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Display scale: every engine's raw score goes through its own rank among
+# reference faces, then onto this target curve (the owner's pick, 2026-10-13):
+# 10% of faces score under 1, 30% under 3, half reach 6, 25% reach 8, 8% reach
+# 9 and 3% reach 9.5. Twin of web/src/lib/display.ts.
+
+TARGET_PERCENTILES = [0.0, 0.10, 0.20, 0.30, 0.50, 0.60, 0.75, 0.85, 0.92, 0.97, 1.0]
+TARGET_SCORES = [0.0, 1.0, 2.0, 3.0, 6.0, 7.0, 8.0, 8.5, 9.0, 9.5, 10.0]
+EXTRA_KNOTS = [0.01, 0.02, 0.05, 0.40, 0.70, 0.80, 0.90, 0.95, 0.99]
+
+
+def display_knots(reference: np.ndarray) -> dict:
+    """Piecewise-linear map raw -> 0-10 so `reference` lands on the target curve."""
+    q = np.array(sorted(set(TARGET_PERCENTILES) | set(EXTRA_KNOTS)))
+    raw = np.quantile(reference, q)
+    raw = raw + np.arange(len(raw)) * 1e-9  # strictly increasing for interpolation
+    return {"raw": [round(float(v), 6) for v in raw], "score": np.interp(q, TARGET_PERCENTILES, TARGET_SCORES).tolist()}
+
+
+def display_score(raw, knots: dict):
+    return np.interp(raw, knots["raw"], knots["score"])

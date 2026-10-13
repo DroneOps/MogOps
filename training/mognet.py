@@ -1,12 +1,16 @@
 """MogNet: CLIP ViT-B/16 image encoder + a linear rating head.
 
 The same modules are used to embed the training faces (03_embed.py) and to
-export the browser model (05_export_web.py), so the app sees exactly the
+export the browser encoder (05_export_web.py), so the app sees exactly the
 preprocessing the head was trained on:
 
   face photo -> MediaPipe crop (common.face_crop_box) -> 224x224 RGB in [0, 1]
              -> CLIP normalization -> encoder(original) + encoder(mirrored)
-             -> average -> L2 normalize -> standardize -> ridge -> SCUT 1-5
+             -> average -> L2 normalize                  (ONNX, in the browser)
+             -> w . e + b                                (model-params.json "mognet.head")
+
+Keeping the head out of the ONNX file means retraining it (04_teacher.py)
+never requires re-exporting or re-committing the 89 MB encoder.
 """
 
 import numpy as np
@@ -59,18 +63,13 @@ class ClipEmbedder(nn.Module):
         return (original + mirrored) / 2
 
 
-class MogNet(nn.Module):
-    """Embedder + linear head folded into one graph: image -> SCUT score (1-5)."""
+class MogNetEncoder(nn.Module):
+    """The browser graph: image -> L2-normalized, flip-averaged CLIP embedding [B, 512]."""
 
-    def __init__(self, embedder: ClipEmbedder, mean, scale, coef, intercept):
+    def __init__(self, embedder: ClipEmbedder):
         super().__init__()
         self.embedder = embedder
-        self.register_buffer("mean", torch.tensor(mean, dtype=torch.float32))
-        self.register_buffer("scale", torch.tensor(scale, dtype=torch.float32))
-        self.register_buffer("coef", torch.tensor(coef, dtype=torch.float32))
-        self.intercept = float(intercept)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         e = self.embedder(x)
-        e = e / e.norm(dim=1, keepdim=True)
-        return ((e - self.mean) / self.scale) @ self.coef + self.intercept
+        return e / e.norm(dim=1, keepdim=True)

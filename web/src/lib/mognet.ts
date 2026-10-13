@@ -1,7 +1,9 @@
-// MogNet: the learned 0-10 score. CLIP ViT-B/16 + ridge head, exported by
-// training/05_export_web.py as one int8 ONNX graph that takes a 224x224 face
-// crop in [0, 1] and returns the predicted SCUT rating (1-5).
+// MogNet: the learned 0-10 score. The CLIP ViT-B/16 encoder is an int8 ONNX
+// graph (training/05_export_web.py) that takes a 224x224 face crop in [0, 1]
+// and returns a normalized 512-d embedding; the linear head trained on
+// SCUT-FBP5500 + MEBeauty (training/04_teacher.py) lives in model-params.json.
 import type { InferenceSession } from "onnxruntime-web/wasm";
+import { displayScore, type Knots } from "./display";
 import params from "./model-params.json";
 
 const BASE = import.meta.env.BASE_URL;
@@ -9,13 +11,14 @@ const INFO = params.mognet as {
   model: string;
   inputSize: number;
   bytes?: number;
-  // Linear fix for the int8 model's rounding drift (training/05_export_web.py).
+  head: { w: number[]; b: number };
+  // Linear fix for the int8 encoder's rounding drift (training/05_export_web.py).
   calibration?: { scale: number; offset: number };
-  accuracy: { pc5fold: number; pc6040: number; mae5fold: number; rmse5fold: number };
+  display: Knots;
+  accuracy: { pc5fold: number; pcMEBeautyTest: number };
 };
 export const MOGNET_INPUT = INFO.inputSize;
 export const MOGNET_ACCURACY = INFO.accuracy;
-export const MOGNET_MB = INFO.bytes ? Math.round(INFO.bytes / 1e6) : null;
 
 // ONNX Runtime is loaded at runtime from our own copy in public/vendor/ort
 // (scripts/copy-wasm.mjs) instead of being bundled. Its worker threads start
@@ -40,14 +43,12 @@ export function loadMogNet(): Promise<InferenceSession> {
   return session;
 }
 
-/** SCUT 1-5 rating mapped linearly to 0-10. */
-export const toTen = (rating: number) => Math.min(10, Math.max(0, ((rating - 1) / 4) * 10));
-
 export async function predictMogNet(pixels: Float32Array): Promise<number> {
   const [ort, s] = await Promise.all([runtime, loadMogNet()]);
   const input = new ort.Tensor("float32", pixels, [1, 3, MOGNET_INPUT, MOGNET_INPUT]);
   const output = await s.run({ image: input });
-  const raw = Number((output.score.data as Float32Array)[0]);
+  const embedding = output.embedding.data as Float32Array;
+  const raw = INFO.head.w.reduce((sum, w, i) => sum + w * embedding[i], INFO.head.b);
   const { scale, offset } = INFO.calibration ?? { scale: 1, offset: 0 };
-  return toTen(scale * raw + offset);
+  return displayScore(scale * raw + offset, INFO.display);
 }

@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import type { Analysis, Overlay } from "../lib/useFaceAnalysis";
-import type { Engine } from "./ScoreCard";
+import { type Engine, ENGINE_LABEL } from "../lib/headline";
 
 export type InputMode = "image" | "camera";
 
@@ -20,6 +20,8 @@ type Props = {
   onShowPointsChange: (show: boolean) => void;
   soundOn: boolean;
   onSoundChange: (on: boolean) => void;
+  memeMode: boolean;
+  onMemeModeChange: (on: boolean) => void;
   /** Briefly true after a raised eyebrow is detected. */
   eyebrowFlash: boolean;
 };
@@ -97,7 +99,7 @@ export function InputCard(props: Props) {
           <p className="card-subtitle">Use a live camera or select one photo to analyze.</p>
         </div>
         <span className="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400">
-          {engine === "mognet" ? "MogNet" : "Geometry"}
+          {ENGINE_LABEL[engine]}
         </span>
       </header>
 
@@ -124,11 +126,18 @@ export function InputCard(props: Props) {
           <select value={engine} onChange={(e) => props.onEngineChange(e.target.value as Engine)} className="select">
             <option value="mognet">MogNet (learned)</option>
             <option value="geometry">Geometry (ratios)</option>
+            <option value="psl">PSL ratios (looksmax lore)</option>
           </select>
         </label>
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <Toggle
+          on={props.memeMode}
+          onChange={props.onMemeModeChange}
+          label="Meme mode"
+          hint="Bonus points for looksmaxxing faces"
+        />
         <Toggle on={showPoints} onChange={props.onShowPointsChange} label="Face points" />
         <Toggle
           on={props.soundOn}

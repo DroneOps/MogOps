@@ -1,7 +1,6 @@
-// Camera mode smooths the geometry ratios over the last N good frames with a
+// Camera mode smooths the facial ratios over the last N good frames with a
 // trimmed mean (drop the highest and lowest 20%), so one bad frame from
 // blinking or motion blur cannot swing the score.
-import { METRIC_KEYS, type Metrics } from "./geometry";
 
 export function trimmedMean(values: number[], trim = 0.2): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -10,14 +9,17 @@ export function trimmedMean(values: number[], trim = 0.2): number {
   return kept.reduce((a, b) => a + b, 0) / kept.length;
 }
 
-export class MetricWindow {
-  private frames: Metrics[] = [];
-  constructor(private readonly size = 30) {}
+export class MetricWindow<K extends string> {
+  private frames: Record<K, number>[] = [];
+  constructor(
+    private readonly keys: readonly K[],
+    private readonly size = 30,
+  ) {}
 
-  push(metrics: Metrics): Metrics {
+  push(metrics: Record<K, number>): Record<K, number> {
     this.frames.push(metrics);
     if (this.frames.length > this.size) this.frames.shift();
-    return Object.fromEntries(METRIC_KEYS.map((k) => [k, trimmedMean(this.frames.map((f) => f[k]))])) as Metrics;
+    return Object.fromEntries(this.keys.map((k) => [k, trimmedMean(this.frames.map((f) => f[k]))])) as Record<K, number>;
   }
 
   get count(): number {

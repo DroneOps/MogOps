@@ -1,0 +1,183 @@
+{
+  "scut": {
+    "pc5fold": -0.093,
+    "pc6040": -0.117,
+    "fittedWeightsPc5fold": 0.305,
+    "byGroup": {
+      "AF": -0.197,
+      "AM": -0.063,
+      "CF": 0.048,
+      "CM": 0.078
+    }
+  },
+  "ratios": {
+    "canthalTilt": {
+      "ideal": [
+        4.0,
+        8.0
+      ],
+      "median": 7.568,
+      "inIdeal": 0.449,
+      "r": -0.126
+    },
+    "fwhr": {
+      "ideal": [
+        1.8,
+        2.0
+      ],
+      "median": 1.622,
+      "inIdeal": 0.058,
+      "r": -0.305
+    },
+    "midfaceRatio": {
+      "ideal": [
+        0.93,
+        1.01
+      ],
+      "median": 0.989,
+      "inIdeal": 0.428,
+      "r": 0.17
+    },
+    "esr": {
+      "ideal": [
+        0.45,
+        0.47
+      ],
+      "median": 0.45,
+      "inIdeal": 0.288,
+      "r": 0.163
+    },
+    "chinPhiltrum": {
+      "ideal": [
+        2.0,
+        2.25
+      ],
+      "median": 2.009,
+      "inIdeal": 0.348,
+      "r": 0.097
+    },
+    "jawCheek": {
+      "ideal": [
+        0.85,
+        0.92
+      ],
+      "median": 0.787,
+      "inIdeal": 0.005,
+      "r": -0.254
+    },
+    "noseEye": {
+      "ideal": [
+        0.95,
+        1.05
+      ],
+      "median": 1.056,
+      "inIdeal": 0.4,
+      "r": 0.026
+    },
+    "mouthNose": {
+      "ideal": [
+        1.45,
+        1.62
+      ],
+      "median": 1.38,
+      "inIdeal": 0.239,
+      "r": 0.155
+    },
+    "thirds": {
+      "ideal": [
+        0.95,
+        1.05
+      ],
+      "median": 0.923,
+      "inIdeal": 0.266,
+      "r": -0.251
+    },
+    "lipRatio": {
+      "ideal": [
+        1.5,
+        2.0
+      ],
+      "median": 1.698,
+      "inIdeal": 0.52,
+      "r": 0.045
+    }
+  },
+  "distribution": {
+    "humans": {
+      "mean": 4.98,
+      "sd": 1.72,
+      "quantiles": [
+        2.54,
+        3.75,
+        4.58,
+        6.33,
+        8.04
+      ]
+    },
+    "pslHarmony": {
+      "mean": 6.61,
+      "sd": 0.85,
+      "quantiles": [
+        5.01,
+        6.13,
+        6.72,
+        7.2,
+        7.8
+      ]
+    },
+    "histogramEdges": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "humansHist": [
+      22,
+      80,
+      431,
+      1164,
+      1556,
+      695,
+      569,
+      662,
+      309,
+      12
+    ],
+    "pslHist": [
+      0,
+      0,
+      2,
+      44,
+      223,
+      882,
+      2425,
+      1809,
+      115,
+      0
+    ]
+  },
+  "mebeauty": {
+    "pc": 0.104,
+    "byGroup": {
+      "female/asian": -0.106,
+      "female/black": 0.056,
+      "female/caucasian": 0.019,
+      "female/hispanic": -0.052,
+      "female/indian": -0.055,
+      "female/mideastern": 0.055,
+      "male/asian": 0.076,
+      "male/black": 0.149,
+      "male/caucasian": 0.028,
+      "male/hispanic": 0.123,
+      "male/indian": -0.096,
+      "male/mideastern": 0.03
+    }
+  }
+}

@@ -35,6 +35,20 @@ describe("EyebrowDetector", () => {
     expect(again.filter(Boolean)).toHaveLength(1);
   });
 
+  it("re-learns the baseline for a new person without a reset", () => {
+    const d = new EyebrowDetector();
+    let t = 0;
+    const step = (lm: Landmark[]) => d.update(lm, width, height, (t += 33));
+    for (let i = 0; i < 60; i++) step(face);
+    // Someone with naturally higher brows steps in: at most one boom...
+    const highBrows = raised(lift);
+    const swap = Array.from({ length: 120 }, () => step(highBrows));
+    expect(swap.filter(Boolean).length).toBeLessThanOrEqual(1);
+    // ...then their own raise, measured from their resting height, still fires.
+    const theirRaise = Array.from({ length: 30 }, () => step(raised(2.2 * lift)));
+    expect(theirRaise.filter(Boolean)).toHaveLength(1);
+  });
+
   it("does not fire on a small twitch", () => {
     const d = new EyebrowDetector();
     let t = 0;

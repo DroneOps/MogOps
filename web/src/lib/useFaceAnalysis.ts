@@ -1,12 +1,23 @@
 // Runs the full pipeline for a photo or a live camera:
 //   MediaPipe landmarks -> pose check -> geometry breakdown (+ 30-frame window
 //   in camera mode) -> SCUT-style crop -> MogNet, throttled and smoothed.
-//   Camera mode also watches for a raised eyebrow (eyebrow.ts).
+//   Also the PSL-ratio score (psl.ts) and the meme-mode expression bonuses
+//   (expressions.ts). Camera mode also watches for a raised eyebrow (eyebrow.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cropToTensor, faceCropBox, sourceHeight, sourceWidth, type CropBox } from "./crop";
-import { computeMetrics, geometryScore, type Landmark, type Metrics, strongestAndWeakest, subScores } from "./geometry";
+import { BlendshapeSmoother, type BonusState, scoreBonuses } from "./expressions";
+import {
+  computeMetrics,
+  geometryScore,
+  type Landmark,
+  METRIC_KEYS,
+  type Metrics,
+  strongestAndWeakest,
+  subScores,
+} from "./geometry";
 import { EyebrowDetector } from "./eyebrow";
 import { detectImage, detectVideo, preloadLandmarker } from "./landmarker";
+import { PSL_KEYS, pslMetrics, type PslMetrics, pslScore, pslSubScores } from "./psl";
 import { loadMogNet, MOGNET_INPUT, predictMogNet } from "./mognet";
 import { checkPose } from "./pose";
 import { MetricWindow } from "./rolling";
@@ -23,6 +34,10 @@ export type Analysis = {
   subs: Metrics | null;
   strength: string | null;
   flaw: string | null;
+  psl: number | null;
+  pslRatios: PslMetrics | null;
+  pslSubs: PslMetrics | null;
+  bonus: { total: number; items: BonusState[] } | null;
   frames: number;
 };
 
@@ -38,6 +53,10 @@ const EMPTY: Analysis = {
   subs: null,
   strength: null,
   flaw: null,
+  psl: null,
+  pslRatios: null,
+  pslSubs: null,
+  bonus: null,
   frames: 0,
 };
 
@@ -63,6 +82,10 @@ export function useFaceAnalysis({ onEyebrowRaise }: { onEyebrowRaise?: () => voi
     const subs = subScores(metrics);
     return { subs, geometry: geometryScore(subs), ...strongestAndWeakest(metrics, subs) };
   };
+  const scorePsl = (ratios: PslMetrics) => {
+    const pslSubs = pslSubScores(ratios);
+    return { pslRatios: ratios, pslSubs, psl: pslScore(pslSubs) };
+  };
 
   const analyzeImage = useCallback(async (image: HTMLImageElement) => {
     stopCamera();
@@ -70,19 +93,21 @@ export function useFaceAnalysis({ onEyebrowRaise }: { onEyebrowRaise?: () => voi
     try {
       const w = image.naturalWidth;
       const h = image.naturalHeight;
-      const landmarks = await detectImage(image);
-      if (!landmarks) {
+      const face = await detectImage(image);
+      if (!face) {
         overlay.current = { landmarks: null, box: null, width: w, height: h };
         setAnalysis({ ...EMPTY, status: "noface", message: "No face found" });
         return;
       }
+      const { landmarks } = face;
       const box = faceCropBox(landmarks, w, h);
       overlay.current = { landmarks, box, width: w, height: h };
       const pose = checkPose(landmarks, w, h);
-      const geo = scoreGeometry(computeMetrics(landmarks, w, h));
       const base = {
         ...EMPTY,
-        ...geo,
+        ...scoreGeometry(computeMetrics(landmarks, w, h)),
+        ...scorePsl(pslMetrics(landmarks, w, h)),
+        bonus: scoreBonuses(face.blendshapes),
         status: (pose.ok ? "ready" : "adjust") as Status,
         message: pose.ok ? "Done" : "Scored, but the pose is off",
         reasons: pose.reasons,
@@ -114,7 +139,9 @@ export function useFaceAnalysis({ onEyebrowRaise }: { onEyebrowRaise?: () => voi
     const state = { stop: false, raf: 0, stream };
     camera.current = state;
 
-    const history = new MetricWindow(30);
+    const history = new MetricWindow(METRIC_KEYS, 30);
+    const pslHistory = new MetricWindow(PSL_KEYS, 30);
+    const expressions = new BlendshapeSmoother();
     const eyebrow = new EyebrowDetector();
     let mognet: number | null = null;
     let busy = false;
@@ -128,14 +155,17 @@ export function useFaceAnalysis({ onEyebrowRaise }: { onEyebrowRaise?: () => voi
         const now = performance.now();
         const w = sourceWidth(video);
         const h = sourceHeight(video);
-        const landmarks = await detectVideo(video, now);
+        const face = await detectVideo(video, now);
         if (state.stop) return;
-        if (!landmarks) {
+        if (!face) {
           history.reset();
+          pslHistory.reset();
+          expressions.reset();
           eyebrow.reset();
           overlay.current = { landmarks: null, box: null, width: w, height: h };
           latest = { ...latest, status: "noface", message: "No face found", reasons: [] };
         } else {
+          const { landmarks } = face;
           const box = faceCropBox(landmarks, w, h);
           overlay.current = { landmarks, box, width: w, height: h };
           const pose = checkPose(landmarks, w, h);
@@ -149,6 +179,8 @@ export function useFaceAnalysis({ onEyebrowRaise }: { onEyebrowRaise?: () => voi
             latest = {
               ...latest,
               ...scoreGeometry(smoothed),
+              ...scorePsl(pslHistory.push(pslMetrics(landmarks, w, h))),
+              bonus: scoreBonuses(expressions.push(face.blendshapes)),
               status: "ready",
               message: "Live",
               reasons: [],

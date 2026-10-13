@@ -27,6 +27,14 @@ The trained models are already in `web/public/models/`, so the app runs without
 touching Python. `npm test` checks that the browser's geometry and pose math
 match the Python training code exactly.
 
+## Sounds (local only)
+
+With **Sound** on, the app loops `web/public/audio/gigachad.mp3` while the
+headline score is 8.0 or higher (pausing and resuming below that, never
+restarting) and plays `web/public/audio/vine-boom.mp3` when camera mode sees a
+raised eyebrow (`web/src/lib/eyebrow.ts`). Both are copyrighted clips, so they
+are git-ignored: add your own copies with those names, or the app stays silent.
+
 ## Repository layout
 
 ```

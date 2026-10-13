@@ -1,9 +1,11 @@
 // Runs the full pipeline for a photo or a live camera:
 //   MediaPipe landmarks -> pose check -> geometry breakdown (+ 30-frame window
 //   in camera mode) -> SCUT-style crop -> MogNet, throttled and smoothed.
+//   Camera mode also watches for a raised eyebrow (eyebrow.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cropToTensor, faceCropBox, sourceHeight, sourceWidth, type CropBox } from "./crop";
 import { computeMetrics, geometryScore, type Landmark, type Metrics, strongestAndWeakest, subScores } from "./geometry";
+import { EyebrowDetector } from "./eyebrow";
 import { detectImage, detectVideo, preloadLandmarker } from "./landmarker";
 import { loadMogNet, MOGNET_INPUT, predictMogNet } from "./mognet";
 import { checkPose } from "./pose";
@@ -42,8 +44,10 @@ const EMPTY: Analysis = {
 const MOGNET_INTERVAL_MS = 1500;
 const UI_INTERVAL_MS = 100;
 
-export function useFaceAnalysis() {
+export function useFaceAnalysis({ onEyebrowRaise }: { onEyebrowRaise?: () => void } = {}) {
   const [analysis, setAnalysis] = useState<Analysis>(EMPTY);
+  const onEyebrowRaiseRef = useRef(onEyebrowRaise);
+  onEyebrowRaiseRef.current = onEyebrowRaise;
   const [modelsReady, setModelsReady] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const overlay = useRef<Overlay>({ landmarks: null, box: null, width: 0, height: 0 });
@@ -111,6 +115,7 @@ export function useFaceAnalysis() {
     camera.current = state;
 
     const history = new MetricWindow(30);
+    const eyebrow = new EyebrowDetector();
     let mognet: number | null = null;
     let busy = false;
     let lastMogNet = 0;
@@ -127,6 +132,7 @@ export function useFaceAnalysis() {
         if (state.stop) return;
         if (!landmarks) {
           history.reset();
+          eyebrow.reset();
           overlay.current = { landmarks: null, box: null, width: w, height: h };
           latest = { ...latest, status: "noface", message: "No face found", reasons: [] };
         } else {
@@ -137,6 +143,8 @@ export function useFaceAnalysis() {
             // Pause instead of penalizing: keep the last scores, ask for a better pose.
             latest = { ...latest, status: "adjust", message: "Adjust your pose", reasons: pose.reasons };
           } else {
+            // Only check brows on a straight-on face: turning or nodding changes their apparent height.
+            if (eyebrow.update(landmarks, w, h, now)) onEyebrowRaiseRef.current?.();
             const smoothed = history.push(computeMetrics(landmarks, w, h));
             latest = {
               ...latest,

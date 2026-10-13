@@ -55,6 +55,14 @@ repo that runs on-device (in the browser), with a Mogwars-style UI and breakdown
     MogNet 5.1 / geometry 6.0 and Python gave 5.08 / 6.03.
   - Pose problems **pause** scoring with a message ("Face the camera straight
     on") instead of shrinking the score like Mogwars does.
+  - Toggleable face-point overlay (off by default; tiny, about 28% opacity when on).
+  - Sounds (added 2026-10-13): Giga Chad theme while headline ≥ 8.0
+    (`MOG_THRESHOLD` in `web/src/lib/sounds.ts`; pause and resume verified), and a vine boom
+    on a raised eyebrow (`web/src/lib/eyebrow.ts`: brow height above the eye
+    corners / eye distance vs. a per-user adapting baseline, fires at +15% held
+    3 frames, re-arms below +6%, 1.2 s cooldown; unit-tested on synthetic faces,
+    **not yet tuned on a real webcam**). MP3s are copyrighted, git-ignored in
+    `web/public/audio/`.
 - **What's broken / incomplete**
   - The int8 model drifts from full precision by an average of 0.076 on the
     1–5 scale (about 0.19 on 0–10) after calibration. Individual faces can be

@@ -16,10 +16,16 @@ type Props = {
   onImage: (image: HTMLImageElement) => void;
   onCamera: (video: HTMLVideoElement, deviceId?: string) => Promise<void>;
   onStop: () => void;
+  showPoints: boolean;
+  onShowPointsChange: (show: boolean) => void;
+  soundOn: boolean;
+  onSoundChange: (on: boolean) => void;
+  /** Briefly true after a raised eyebrow is detected. */
+  eyebrowFlash: boolean;
 };
 
 export function InputCard(props: Props) {
-  const { mode, engine, analysis, overlay, modelsReady, modelError } = props;
+  const { mode, engine, analysis, overlay, modelsReady, modelError, showPoints } = props;
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,6 +33,9 @@ export function InputCard(props: Props) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string>("");
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // The draw loop reads this ref so toggling does not restart the loop.
+  const showPointsRef = useRef(showPoints);
+  showPointsRef.current = showPoints;
 
   // Start / stop the camera when the mode or device changes.
   useEffect(() => {
@@ -54,14 +63,15 @@ export function InputCard(props: Props) {
         }
         const ctx = canvas.getContext("2d")!;
         ctx.clearRect(0, 0, width, height);
-        if (landmarks) {
-          const r = Math.max(1.5, width / 220);
-          ctx.fillStyle = "rgba(244, 244, 245, 0.7)";
+        // Tiny, faint dots so the face stays clearly visible underneath.
+        if (showPointsRef.current && landmarks) {
+          const r = Math.max(1, width / 900);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
           for (const p of landmarks) ctx.fillRect(p.x * width - r / 2, p.y * height - r / 2, r, r);
         }
-        if (box) {
-          ctx.strokeStyle = "rgba(52, 211, 153, 0.8)";
-          ctx.lineWidth = Math.max(2, width / 400);
+        if (showPointsRef.current && box) {
+          ctx.strokeStyle = "rgba(52, 211, 153, 0.35)";
+          ctx.lineWidth = Math.max(1, width / 900);
           ctx.strokeRect(box.cx - box.side / 2, box.cy - box.side / 2, box.side, box.side);
         }
       }
@@ -118,6 +128,16 @@ export function InputCard(props: Props) {
         </label>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Toggle on={showPoints} onChange={props.onShowPointsChange} label="Face points" />
+        <Toggle
+          on={props.soundOn}
+          onChange={props.onSoundChange}
+          label="Sound"
+          hint="Giga Chad at 8.0+, boom on eyebrow raise"
+        />
+      </div>
+
       {mode === "camera" ? (
         <label className="field">
           <span>Camera</span>
@@ -162,6 +182,11 @@ export function InputCard(props: Props) {
         {modelError && <Placeholder text={`Could not load models: ${modelError}`} />}
         {modelsReady && mode === "image" && !imageUrl && <Placeholder text="Choose a photo to begin analysis." />}
         {cameraError && <Placeholder text={`Camera unavailable: ${cameraError}`} />}
+        {props.eyebrowFlash && (
+          <span className="absolute left-3 top-3 rounded-md bg-zinc-950/70 px-2.5 py-1 text-sm font-medium text-zinc-50">
+            Eyebrow raise
+          </span>
+        )}
       </div>
 
       {analysis.reasons.length > 0 && (
@@ -174,6 +199,25 @@ export function InputCard(props: Props) {
         </ul>
       )}
     </section>
+  );
+}
+
+function Toggle({ on, onChange, label, hint }: { on: boolean; onChange: (on: boolean) => void; label: string; hint?: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      title={hint}
+      onClick={() => onChange(!on)}
+      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${
+        on ? "border-zinc-500 bg-zinc-800 text-zinc-100" : "border-zinc-800 text-zinc-400 hover:text-zinc-200"
+      }`}
+    >
+      <span className={`h-2 w-2 rounded-full ${on ? "bg-emerald-400" : "bg-zinc-600"}`} />
+      {label}
+      {hint && <span className="hidden text-xs text-zinc-500 sm:inline">{hint}</span>}
+    </button>
   );
 }
 

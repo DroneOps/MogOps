@@ -1,12 +1,59 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { InputCard, type InputMode } from "./components/InputCard";
 import { type Engine, ScoreCard } from "./components/ScoreCard";
+import { createSounds, MOG_THRESHOLD } from "./lib/sounds";
 import { useFaceAnalysis } from "./lib/useFaceAnalysis";
+
+/** A boolean setting remembered in this browser. */
+function useStoredFlag(key: string, initial: boolean) {
+  const [value, setValue] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored === null ? initial : stored === "1";
+    } catch {
+      return initial;
+    }
+  });
+  const set = (next: boolean) => {
+    setValue(next);
+    try {
+      localStorage.setItem(key, next ? "1" : "0");
+    } catch {
+      // Storage can be blocked (private mode); the setting just won't persist.
+    }
+  };
+  return [value, set] as const;
+}
 
 export default function App() {
   const [mode, setMode] = useState<InputMode>("image");
   const [engine, setEngine] = useState<Engine>("mognet");
-  const face = useFaceAnalysis();
+  const [showPoints, setShowPoints] = useStoredFlag("mogops.showPoints", false);
+  const [soundOn, setSoundOn] = useStoredFlag("mogops.sound", true);
+  const [eyebrowFlash, setEyebrowFlash] = useState(false);
+  const sounds = useMemo(createSounds, []);
+  const soundOnRef = useRef(soundOn);
+  soundOnRef.current = soundOn;
+  const flashTimer = useRef(0);
+
+  const face = useFaceAnalysis({
+    onEyebrowRaise: () => {
+      if (soundOnRef.current) sounds.boom();
+      setEyebrowFlash(true);
+      clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setEyebrowFlash(false), 1200);
+    },
+  });
+
+  // Giga Chad theme while the headline score is at or above the threshold.
+  // Pausing keeps its position, so it resumes instead of restarting.
+  const { status, mognet, geometry } = face.analysis;
+  const headline = engine === "mognet" ? mognet : geometry;
+  const faceScored = status === "ready" || status === "adjust";
+  useEffect(() => {
+    sounds.setMusic(soundOn && faceScored && headline !== null && headline >= MOG_THRESHOLD);
+  }, [sounds, soundOn, faceScored, headline]);
+  useEffect(() => () => sounds.stop(), [sounds]);
 
   const changeMode = (next: InputMode) => {
     face.reset();
@@ -33,6 +80,11 @@ export default function App() {
           onImage={face.analyzeImage}
           onCamera={face.startCamera}
           onStop={face.stopCamera}
+          showPoints={showPoints}
+          onShowPointsChange={setShowPoints}
+          soundOn={soundOn}
+          onSoundChange={setSoundOn}
+          eyebrowFlash={eyebrowFlash}
         />
         <ScoreCard analysis={face.analysis} engine={engine} />
       </div>
